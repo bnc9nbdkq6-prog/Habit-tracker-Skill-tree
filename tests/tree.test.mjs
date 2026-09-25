@@ -63,7 +63,7 @@ test("back-up weigert dubbele ids en ongeldige velden", () => {
   assert.throws(() => validate(n.map((x) => ({ ...x, vision: {} }))));
   assert.throws(() => validate(n.map((x) => ({ ...x, deadline: "nope" }))));
 });
-test("projecten mogen op jaar- en tienjaarsniveau; posities zijn eindig", () => {
+test("projecten mogen op jaar- en langetermijnniveau; posities zijn eindig", () => {
   for (const p of ["0", "1", "2"]) {
     const n = fixture().map((x) => (x.id === "3" ? { ...x, parentId: p } : x));
     assert.doesNotThrow(() => validate(n));

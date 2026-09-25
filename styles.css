@@ -277,6 +277,74 @@ nav button.active {
   height: 100%;
   background: #cae6a7;
 }
+.aspect-heading {
+  padding: 22px 20px 12px;
+}
+.aspect-heading h2 {
+  font-size: 28px;
+  line-height: 1.15;
+  margin: 5px 0 13px;
+  overflow-wrap: anywhere;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 17px;
+  color: #bdc9bd;
+  font-size: 11px;
+}
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { font-size: 15px; font-style: normal; }
+.legend-done { color: #cde7aa; }
+.legend-active { color: #9faeaa; }
+.legend-goal { color: #f1ce78; }
+.root {
+  width: 86px;
+  height: 86px;
+  background: #28342e;
+  border: 2px solid #91a294;
+  color: #f1f3e9;
+  font-size: 17px;
+  font-weight: 700;
+}
+.root small { color: #c1cbbd; font-size: 9px; }
+.node {
+  background: #242c2e;
+  border-color: #627073;
+}
+.node small { color: #d0d9d5; }
+.node.active {
+  background: #293235;
+  border-color: #758488;
+}
+.node.completed {
+  color: #203020;
+  background: #cde7aa;
+  border: 2px solid #e0f2c5;
+}
+.node.completed small,
+.node.completed span { color: #3b5637; }
+.node.completed .bar { background: #91ae76; }
+.node.completed .bar i { background: #355938; }
+.node-status {
+  display: inline-block;
+  font-size: 10px !important;
+  font-weight: 750;
+  letter-spacing: .3px;
+  margin-bottom: 5px;
+}
+.node.vision.active {
+  border: 2px solid #edc869;
+  background: #3b3525;
+}
+.node.vision.active small { color: #f1ce78; }
+.node.vision.completed {
+  border-color: #f5e4ad;
+  background: #f1ce78;
+  color: #3e341c;
+}
+.node.vision.completed small,
+.node.vision.completed span { color: #594a25; }
 .zoom {
   position: absolute;
   bottom: 38px;

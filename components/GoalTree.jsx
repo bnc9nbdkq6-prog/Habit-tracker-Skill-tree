@@ -233,7 +233,7 @@ export default function GoalTree() {
     <main>
       <header>
         <div>
-          <p className="eyebrow">MIJN PERSOONLIJKE KOMPAS</p>
+          <p className="eyebrow">MIJN DOELEN</p>
           <h1>
             Richting<span>✳</span>
           </h1>
@@ -246,10 +246,6 @@ export default function GoalTree() {
           ↥
         </button>
       </header>
-      <section className="intro">
-        <h2>Alles begint met samenhang.</h2>
-        <p>Van het leven dat je wilt leiden tot de mijlpaal van deze week.</p>
-      </section>
       <div className="summary">
         <span>
           <b>
@@ -318,27 +314,29 @@ export default function GoalTree() {
         <p className="empty">Je richting wordt geladen…</p>
       ) : tab === "tree" ? (
         nodes.length ? (
-          <Tree nodes={nodes} visible={visible} onSelect={setSelected} />
+          <>
+            <section className="aspect-heading" aria-label="Geselecteerd levensgebied">
+              <p className="eyebrow">LEVENSGEBIED</p>
+              <h2>{domain || (domains.length === 1 ? domains[0] : "Alle levensgebieden")}</h2>
+              <div className="legend"><span><i className="legend-done">✓</i> Behaald</span><span><i className="legend-active">○</i> Nog te behalen</span><span><i className="legend-goal">◆</i> Einddoel</span></div>
+            </section>
+            <Tree nodes={nodes} visible={visible} onSelect={setSelected} />
+          </>
         ) : (
           <section className="empty">
-            <div className="seed">✳</div>
-            <p className="eyebrow">RUIMTE VOOR JOUW TOEKOMST</p>
-            <h2>Geef je eerste richting vorm.</h2>
+            <p className="eyebrow">SKILLTREE</p>
+            <h2>Langetermijnvisie</h2>
             <p>
-              Begin met een tienjaarsvisie. Verbind daar je doelen, projecten en
-              weekmijlpalen aan.
+              Maak een langetermijnvisie. Voeg daarna jaarlijkse doelen,
+              projecten en weekmijlpalen toe.
             </p>
             <button
               disabled={!data}
               className="primary"
               onClick={() => create(null, "vision")}
             >
-              ＋ Eerste visie maken
+              ＋ Langetermijnvisie toevoegen
             </button>
-            <p className="hint">
-              Bijvoorbeeld: karakterontwikkeling, inkomen en carrière, of
-              levensomstandigheden.
-            </p>
           </section>
         )
       ) : tab === "timeline" ? (
@@ -377,10 +375,9 @@ export default function GoalTree() {
         </section>
       ) : (
         <section className="history">
-          <h2>Je richting mag veranderen.</h2>
+          <h2>Versiegeschiedenis</h2>
           <p>
-            Elke opgeslagen wijziging bewaart de vorige situatie. Herstellen
-            bewaart ook je huidige boom.
+            Eerdere versies van je doelen en projecten.
           </p>
           {[...(data?.history || [])].reverse().map((h) => (
             <article key={h.id}>
@@ -402,16 +399,13 @@ export default function GoalTree() {
         </section>
       )}
       <footer>
-        <p>
-          Een mijlpaal gekozen? Zet de eerstvolgende concrete actie in je eigen
-          to-dolijst.
-        </p>
+        <p>Je dagelijkse taken staan in je eigen to-dolijst.</p>
         <button
           className="primary"
           disabled={!data}
           onClick={() => create(null, "vision")}
         >
-          ＋ Visie
+          ＋ Langetermijnvisie
         </button>
       </footer>
       <input
@@ -910,9 +904,7 @@ function Tree({ nodes, visible, onSelect }) {
               })}
             </g>
           </svg>
-          <div className="root">
-            ✳<small>MIJN LEVEN</small>
-          </div>
+          <div className="root">NU<small>STARTPUNT</small></div>
           {nodes.map((n) => {
             const p = positions[n.id],
               pr = progress(nodes, n.id);
@@ -928,10 +920,11 @@ function Tree({ nodes, visible, onSelect }) {
                 onClick={() => onSelect(n.id)}
               >
                 <small>
-                  {TYPES[n.type]} {n.status === "completed" ? "✓" : ""}
+                  {n.type === "vision" ? "◆ EINDDOEL" : n.domain || TYPES[n.type]}
                 </small>
                 <strong>{n.title}</strong>
-                <span>{date(n.deadline)}</span>
+                <span className="node-status">{n.status === "completed" ? "✓ BEHAALD" : "○ NOG TE BEHALEN"}</span>
+                <span>{TYPES[n.type]} · {date(n.deadline)}</span>
                 <div className="bar">
                   <i
                     style={{
