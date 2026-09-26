@@ -345,6 +345,38 @@ nav button.active {
 }
 .node.vision.completed small,
 .node.vision.completed span { color: #594a25; }
+.node-events {
+  display: block;
+  margin-top: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #4b3e2c;
+  color: #f4d492 !important;
+  font-size: 10px !important;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.node.completed .node-events { background: #f4e7c3; color: #5f4721 !important; }
+.event-log { border-top: 1px solid #3b4b39; padding-top: 18px; }
+.event-log > .muted { margin-top: 12px; }
+.event-entry {
+  padding: 13px;
+  border: 1px solid #716042;
+  border-left: 3px solid #e1bd70;
+  border-radius: 10px;
+  background: #28271f;
+  margin: 12px 0;
+}
+.event-entry.mistake { border-color: #81554b; border-left-color: #e18d79; background: #2d2423; }
+.event-entry-heading { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; font-weight: 700; color: #f0d28d; }
+.event-entry.mistake .event-entry-heading { color: #efae9d; }
+.event-entry time,.event-entry small { color: #b6c1b2; font-size: 11px; }
+.event-entry p { margin: 8px 0; color: #e2e8dc; white-space: pre-wrap; overflow-wrap: anywhere; }
+.event-delete { min-height: 36px; margin-top: 8px; padding: 6px 10px; font-size: 12px; }
+.snapshot-events { margin: 18px 0; }
+.snapshot-events h3 { margin-bottom: 10px; }
+.timeline-event .dot { border-color: #e1bd70; background: #e1bd70; }
+.timeline-event .dot.mistake { border-color: #e18d79; background: #e18d79; }
 .zoom {
   position: absolute;
   bottom: 38px;

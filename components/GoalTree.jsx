@@ -21,12 +21,17 @@ const date = (d) =>
       })
     : "Geen deadline";
 const stamp = (d) => new Date(d).toLocaleString("nl-NL");
+const today = () =>
+  new Date(Date.now() - new Date().getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 10);
 export default function GoalTree() {
   const [data, setData] = useState(null),
     [error, setError] = useState(""),
     [tab, setTab] = useState("tree");
   const [selected, setSelected] = useState(null),
     [draft, setDraft] = useState(null),
+    [eventDraft, setEventDraft] = useState(null),
     [panel, setPanel] = useState(null);
   const [notice, setNotice] = useState(""),
     [domain, setDomain] = useState(""),
@@ -39,7 +44,7 @@ export default function GoalTree() {
       const raw = localStorage.getItem(KEY);
       const saved = raw
         ? JSON.parse(raw)
-        : { version: 1, nodes: [], history: [] };
+        : { version: 1, nodes: [], events: [], history: [] };
       checkData(saved);
       setData(saved);
     } catch {
@@ -67,7 +72,7 @@ export default function GoalTree() {
     window.addEventListener("storage", changed);
     return () => window.removeEventListener("storage", changed);
   }, []);
-  const modal = !!(draft || selected || panel);
+  const modal = !!(draft || eventDraft || selected || panel);
   useEffect(() => {
     if (!modal) return;
     previousFocus.current = document.activeElement;
@@ -106,15 +111,18 @@ export default function GoalTree() {
   }, [modal]);
   function close() {
     setDraft(null);
+    setEventDraft(null);
     setSelected(null);
     setPanel(null);
   }
-  function commit(nodes, label) {
+  function commit(nodes, label, nextEvents = data?.events || []) {
     try {
       validate(nodes);
+      validateEvents(nextEvents, nodes);
       const next = {
         version: 1,
         nodes,
+        events: nextEvents,
         history: [
           ...(data?.history || []),
           {
@@ -122,6 +130,7 @@ export default function GoalTree() {
             at: new Date().toISOString(),
             label,
             nodes: data?.nodes || [],
+            events: data?.events || [],
           },
         ],
       };
@@ -142,6 +151,7 @@ export default function GoalTree() {
   const nodes = data?.nodes || [],
     node = nodes.find((n) => n.id === selected);
   const domains = [...new Set(nodes.map((n) => n.domain).filter(Boolean))];
+  const events = data?.events || [];
   function create(parent, type) {
     setSelected(null);
     setDraft(blank(type, parent?.id || null, parent?.domain || ""));
@@ -175,6 +185,33 @@ export default function GoalTree() {
       setSelected(draft.id);
     }
   }
+  function markDeviation(node) {
+    setSelected(null);
+    setEventDraft({
+      id: uid(),
+      nodeId: node.id,
+      date: today(),
+      kind: "deviation",
+      details: "",
+      nextStep: "",
+    });
+  }
+  function saveEvent(e) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const event = {
+      ...eventDraft,
+      date: form.get("event-date"),
+      kind: form.get("event-kind"),
+      details: String(form.get("event-details") || "").trim(),
+      nextStep: String(form.get("event-next-step") || "").trim(),
+    };
+    const nextEvents = [...events, event];
+    if (commit(nodes, event.kind === "mistake" ? "Fout gemarkeerd" : "Afwijking gemarkeerd", nextEvents)) {
+      setEventDraft(null);
+      setSelected(event.nodeId);
+    }
+  }
   function exportFile(raw = false) {
     const text = raw
       ? localStorage.getItem(KEY)
@@ -206,14 +243,20 @@ export default function GoalTree() {
         ...imported,
         history: [
           ...(data?.history || []),
-          ...imported.history.map((h) => ({ ...h, id: uid() })),
+          ...imported.history.map((h) => ({
+            ...h,
+            id: uid(),
+            events: h.events || [],
+          })),
           {
             id: uid(),
             at: new Date().toISOString(),
             label: "Situatie vóór import",
             nodes,
+            events,
           },
         ],
+        events: imported.events || [],
       };
       localStorage.setItem(KEY, JSON.stringify(next));
       setData(next);
@@ -229,6 +272,18 @@ export default function GoalTree() {
       (!domain || n.domain === domain) &&
       (!query || n.title.toLowerCase().includes(query.toLowerCase())),
   );
+  const visibleIds = new Set(visible.map((n) => n.id));
+  const timelineItems = [
+    ...visible.map((item) => ({ itemType: "node", item, date: item.deadline })),
+    ...events
+      .filter((event) => visibleIds.has(event.nodeId))
+      .map((item) => ({ itemType: "event", item, date: item.date })),
+  ].sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"));
+  const nodeEvents = node
+    ? events
+        .filter((event) => descendants(nodes, node.id).has(event.nodeId))
+        .sort((a, b) => b.date.localeCompare(a.date))
+    : [];
   return (
     <main>
       <header>
@@ -320,7 +375,12 @@ export default function GoalTree() {
               <h2>{domain || (domains.length === 1 ? domains[0] : "Alle levensgebieden")}</h2>
               <div className="legend"><span><i className="legend-done">✓</i> Behaald</span><span><i className="legend-active">○</i> Nog te behalen</span><span><i className="legend-goal">◆</i> Einddoel</span></div>
             </section>
-            <Tree nodes={nodes} visible={visible} onSelect={setSelected} />
+            <Tree
+              nodes={nodes}
+              visible={visible}
+              events={events}
+              onSelect={setSelected}
+            />
           </>
         ) : (
           <section className="empty">
@@ -341,12 +401,31 @@ export default function GoalTree() {
         )
       ) : tab === "timeline" ? (
         <section className="timeline">
-          {visible.length ? (
-            [...visible]
-              .sort((a, b) =>
-                (a.deadline || "9999").localeCompare(b.deadline || "9999"),
-              )
-              .map((n) => (
+          {timelineItems.length ? (
+            timelineItems.map(({ itemType, item }) => {
+              if (itemType === "event") {
+                const parent = nodes.find((n) => n.id === item.nodeId);
+                return (
+                  <button
+                    className="timeline-item timeline-event"
+                    key={item.id}
+                    onClick={() => setSelected(item.nodeId)}
+                  >
+                    <span className={"dot " + item.kind} />
+                    <div>
+                      <small>
+                        {date(item.date)} · {item.kind === "mistake" ? "Fout" : "Afwijking"}
+                      </small>
+                      <h3>{item.details}</h3>
+                      <p>{parent?.domain} · {parent?.title}</p>
+                      {item.nextStep && <small>Vervolg: {item.nextStep}</small>}
+                    </div>
+                    <span>›</span>
+                  </button>
+                );
+              }
+              const n = item;
+              return (
                 <button
                   className="timeline-item"
                   key={n.id}
@@ -354,21 +433,15 @@ export default function GoalTree() {
                 >
                   <span className={"dot " + n.status} />
                   <div>
-                    <small>
-                      {date(n.deadline)} · {TYPES[n.type]}
-                    </small>
+                    <small>{date(n.deadline)} · {TYPES[n.type]}</small>
                     <h3>{n.title}</h3>
-                    <p>
-                      {n.domain} {n.status === "completed" ? "· Voltooid" : ""}
-                    </p>
-                    <small>
-                      {nodes.find((p) => p.id === n.parentId)?.title ||
-                        "Langetermijnrichting"}
-                    </small>
+                    <p>{n.domain} {n.status === "completed" ? "· Behaald" : "· Open"}</p>
+                    <small>{nodes.find((p) => p.id === n.parentId)?.title || "Langetermijnvisie"}</small>
                   </div>
                   <span>›</span>
                 </button>
-              ))
+              );
+            })
           ) : (
             <p className="empty">Geen onderdelen om te tonen.</p>
           )}
@@ -383,7 +456,7 @@ export default function GoalTree() {
             <article key={h.id}>
               <small>{stamp(h.at)}</small>
               <h3>Vóór: {h.label}</h3>
-              <p>{h.nodes.length} onderdelen</p>
+              <p>{h.nodes.length} onderdelen · {h.events?.length || 0} markeringen</p>
               <button
                 onClick={() => {
                   setPanel({ snapshot: h });
@@ -427,11 +500,13 @@ export default function GoalTree() {
             ref={dialog}
             role="dialog"
             aria-modal="true"
-            aria-label={draft ? "Onderdeel bewerken" : node?.title || "Beheer"}
+            aria-label={eventDraft ? "Padmarkering toevoegen" : draft ? "Onderdeel bewerken" : node?.title || "Beheer"}
           >
             <div className="sheet-top">
               <span className="eyebrow">
-                {draft
+                {eventDraft
+                  ? "PADMARKERING"
+                  : draft
                   ? "RICHTING VORMGEVEN"
                   : node
                     ? TYPES[node.type]
@@ -545,6 +620,52 @@ export default function GoalTree() {
                   Opslaan
                 </button>
               </form>
+            ) : eventDraft ? (
+              <form onSubmit={saveEvent}>
+                <h2>Markering op het pad</h2>
+                <p className="muted">
+                  {nodes.find((n) => n.id === eventDraft.nodeId)?.title}
+                </p>
+                <label>
+                  Wat wil je markeren?
+                  <select name="event-kind" defaultValue={eventDraft.kind}>
+                    <option value="deviation">Afwijking van het plan</option>
+                    <option value="mistake">Fout die ik maakte</option>
+                  </select>
+                </label>
+                <label>
+                  Datum
+                  <input
+                    type="date"
+                    name="event-date"
+                    required
+                    defaultValue={eventDraft.date}
+                  />
+                </label>
+                <label>
+                  Wat gebeurde er?
+                  <textarea
+                    name="event-details"
+                    rows={3}
+                    required
+                    maxLength={500}
+                    placeholder="Beschrijf kort wat er misliep of veranderde."
+                    autoFocus
+                  />
+                </label>
+                <label>
+                  Hoe pak je het vervolg op? · optioneel
+                  <textarea
+                    name="event-next-step"
+                    rows={2}
+                    maxLength={300}
+                    placeholder="Bijvoorbeeld: hervat de eerstvolgende mijlpaal."
+                  />
+                </label>
+                <button className="primary wide" type="submit">
+                  Markering opslaan
+                </button>
+              </form>
             ) : node ? (
               <>
                 <h2>{node.title}</h2>
@@ -584,6 +705,35 @@ export default function GoalTree() {
                       </div>
                     ),
                 )}
+                <div className="detail event-log">
+                  <h3>Markeringen op dit pad · {nodeEvents.length}</h3>
+                  {node.type !== "milestone" && (
+                    <button className="add-child" onClick={() => markDeviation(node)}>
+                      ＋ Afwijking of fout markeren
+                    </button>
+                  )}
+                  {nodeEvents.length ? nodeEvents.map((event) => {
+                    const linkedNode = nodes.find((n) => n.id === event.nodeId);
+                    return (
+                      <article className={"event-entry " + event.kind} key={event.id}>
+                        <div className="event-entry-heading">
+                          <span>{event.kind === "mistake" ? "! Fout" : "↘ Afwijking"}</span>
+                          <time dateTime={event.date}>{date(event.date)}</time>
+                        </div>
+                        {linkedNode?.id !== node.id && <small>Bij: {linkedNode?.title}</small>}
+                        <p>{event.details}</p>
+                        {event.nextStep && <small>Vervolg: {event.nextStep}</small>}
+                        <button
+                          className="event-delete"
+                          onClick={() => {
+                            if (confirm("Deze padmarkering verwijderen? Je kunt haar via de versiegeschiedenis herstellen."))
+                              commit(nodes, "Padmarkering verwijderd", events.filter((item) => item.id !== event.id));
+                          }}
+                        >Verwijderen</button>
+                      </article>
+                    );
+                  }) : <p className="muted">Nog geen afwijkingen of fouten op deze tak.</p>}
+                </div>
                 <div className="detail">
                   <h3>
                     {node.type === "project"
@@ -662,6 +812,7 @@ export default function GoalTree() {
                         commit(
                           nodes.filter((n) => !ids.has(n.id)),
                           "Tak verwijderd",
+                          events.filter((event) => !ids.has(event.nodeId)),
                         )
                       )
                         close();
@@ -711,6 +862,20 @@ export default function GoalTree() {
                     </li>
                   ))}
                 </ul>
+                {!!panel.snapshot.events?.length && (
+                  <section className="snapshot-events">
+                    <h3>Padmarkeringen · {panel.snapshot.events.length}</h3>
+                    {panel.snapshot.events.map((event) => (
+                      <article className={"event-entry " + event.kind} key={event.id}>
+                        <div className="event-entry-heading">
+                          <span>{event.kind === "mistake" ? "! Fout" : "↘ Afwijking"}</span>
+                          <time dateTime={event.date}>{date(event.date)}</time>
+                        </div>
+                        <p>{event.details}</p>
+                      </article>
+                    ))}
+                  </section>
+                )}
                 <button
                   className="primary wide"
                   onClick={() => {
@@ -718,7 +883,7 @@ export default function GoalTree() {
                       confirm(
                         "Deze versie herstellen? De huidige situatie blijft bewaard.",
                       ) &&
-                      commit(panel.snapshot.nodes, "Versie hersteld")
+                      commit(panel.snapshot.nodes, "Versie hersteld", panel.snapshot.events || [])
                     )
                       close();
                   }}
@@ -768,6 +933,7 @@ function checkData(d) {
   if (!d || d.version !== 1 || !Array.isArray(d.history))
     throw Error("Geen geldige Richting-back-up.");
   validate(d.nodes);
+  validateEvents(d.events || [], d.nodes);
   for (const h of d.history) {
     if (
       !h ||
@@ -775,9 +941,32 @@ function checkData(d) {
       typeof h.label !== "string" ||
       !Number.isFinite(Date.parse(h.at))
     )
-      throw Error("Ongeldige geschiedenis.");
+    throw Error("Ongeldige geschiedenis.");
     validate(h.nodes);
+    validateEvents(h.events || [], h.nodes);
   }
+}
+function validateEvents(events, nodes) {
+  if (!Array.isArray(events) || events.length > 20_000)
+    throw Error("Ongeldige of te grote lijst met padmarkeringen.");
+  const ids = new Set();
+  for (const event of events) {
+    if (
+      !event ||
+      typeof event.id !== "string" ||
+      ids.has(event.id) ||
+      !nodes.some((node) => node.id === event.nodeId) ||
+      !["deviation", "mistake"].includes(event.kind) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(event.date) ||
+      !Number.isFinite(Date.parse(event.date)) ||
+      typeof event.details !== "string" ||
+      !event.details.trim() ||
+      typeof event.nextStep !== "string"
+    )
+      throw Error("Een padmarkering bevat ongeldige gegevens.");
+    ids.add(event.id);
+  }
+  return events;
 }
 function ancestorPath(nodes, node) {
   const path = [];
@@ -788,7 +977,7 @@ function ancestorPath(nodes, node) {
   }
   return path;
 }
-function Tree({ nodes, visible, onSelect }) {
+function Tree({ nodes, visible, events, onSelect }) {
   const box = useRef(null),
     pointers = useRef(new Map()),
     gesture = useRef(null);
@@ -796,6 +985,11 @@ function Tree({ nodes, visible, onSelect }) {
     [size, setSize] = useState({ w: 360, h: 500 });
   const positions = layout(nodes),
     visibleIds = new Set(visible.map((n) => n.id));
+  const eventCounts = events.reduce((counts, event) => {
+    counts[event.nodeId] ||= { deviation: 0, mistake: 0 };
+    counts[event.nodeId][event.kind] += 1;
+    return counts;
+  }, {});
   useEffect(() => {
     const ro = new ResizeObserver(([e]) =>
       setSize({ w: e.contentRect.width, h: e.contentRect.height }),
@@ -924,6 +1118,13 @@ function Tree({ nodes, visible, onSelect }) {
                 </small>
                 <strong>{n.title}</strong>
                 <span className="node-status">{n.status === "completed" ? "✓ BEHAALD" : "○ NOG TE BEHALEN"}</span>
+                {eventCounts[n.id] && (
+                  <span className="node-events">
+                    {eventCounts[n.id].deviation > 0 && `↘ ${eventCounts[n.id].deviation} afwijking${eventCounts[n.id].deviation === 1 ? "" : "en"}`}
+                    {eventCounts[n.id].deviation > 0 && eventCounts[n.id].mistake > 0 && " · "}
+                    {eventCounts[n.id].mistake > 0 && `! ${eventCounts[n.id].mistake} fout${eventCounts[n.id].mistake === 1 ? "" : "en"}`}
+                  </span>
+                )}
                 <span>{TYPES[n.type]} · {date(n.deadline)}</span>
                 <div className="bar">
                   <i
