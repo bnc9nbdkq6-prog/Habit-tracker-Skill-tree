@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d2d25" />
+      <stop offset="1" stop-color="#101914" />
+    </linearGradient>
+    <linearGradient id="path" x1="0" y1="1" x2=".72" y2="0">
+      <stop offset="0" stop-color="#79a88a" />
+      <stop offset="1" stop-color="#c8e8a2" />
+    </linearGradient>
+    <filter id="glow" x="-.5" y="-.5" width="2" height="2">
+      <feGaussianBlur stdDeviation="9" result="blur" />
+      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#ground)" />
+  <circle cx="258" cy="257" r="174" fill="none" stroke="#d6edbc" stroke-opacity=".08" stroke-width="2" />
+  <circle cx="258" cy="257" r="142" fill="none" stroke="#d6edbc" stroke-opacity=".06" stroke-width="2" />
+
+  <path d="M176 416c2-55 18-91 55-119 30-23 67-30 89-62 17-25 17-56 12-91" fill="none" stroke="#101914" stroke-width="34" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M176 416c2-55 18-91 55-119 30-23 67-30 89-62 17-25 17-56 12-91" fill="none" stroke="url(#path)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" />
+
+  <path d="M226 313c-33-2-58-18-72-45" fill="none" stroke="#79aa91" stroke-width="13" stroke-linecap="round" />
+  <path d="M290 257c30 4 53 20 66 45" fill="none" stroke="#79aa91" stroke-width="13" stroke-linecap="round" />
+
+  <circle cx="154" cy="258" r="17" fill="#101914" stroke="#9fceb0" stroke-width="9" />
+  <circle cx="361" cy="302" r="17" fill="#101914" stroke="#9fceb0" stroke-width="9" />
+  <circle cx="230" cy="296" r="19" fill="#101914" stroke="#c8e8a2" stroke-width="10" />
+  <circle cx="320" cy="235" r="19" fill="#101914" stroke="#c8e8a2" stroke-width="10" />
+  <circle cx="176" cy="416" r="12" fill="#d6edbc" />
+
+  <circle cx="332" cy="134" r="43" fill="#efca78" fill-opacity=".14" filter="url(#glow)" />
+  <path d="M332 91l10 31 31 10-31 10-10 31-10-31-31-10 31-10z" fill="#f0ca78" />
+  <circle cx="332" cy="132" r="6" fill="#fff2c8" />
+</svg>
