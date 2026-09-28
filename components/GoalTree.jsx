@@ -590,6 +590,8 @@ export default function GoalTree() {
               <span className="eyebrow">
                 {eventDraft
                   ? "PADMARKERING"
+                  : avoidDraft
+                  ? "VERMIJDINGSPAD"
                   : draft
                   ? "RICHTING VORMGEVEN"
                   : node
