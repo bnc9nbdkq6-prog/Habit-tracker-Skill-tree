@@ -153,13 +153,16 @@ nav {
   padding: 0 20px;
   border-bottom: 1px solid #334236;
   gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+nav::-webkit-scrollbar { display: none; }
 nav button {
   border: 0;
   border-radius: 0;
   background: transparent;
-  flex: 1;
-  padding: 12px 3px;
+  flex: 0 0 auto;
+  padding: 12px 9px;
   font-size: 13px;
   color: #a6b4a7;
 }
@@ -502,6 +505,76 @@ footer button {
 .history article button {
   margin-top: 12px;
 }
+.compass-page,
+.rulebook-page {
+  padding: 24px 20px;
+}
+.compass-page h2,
+.rulebook-page h2 { margin: 5px 0 8px; }
+.compass-page > .muted,
+.rulebook-page > .muted { margin-bottom: 22px; }
+.compass-page label {
+  display: block;
+  margin: 20px 0;
+  color: #dbe5d8;
+  font-weight: 600;
+  font-size: 13px;
+}
+.compass-page textarea {
+  display: block;
+  margin-top: 8px;
+  resize: vertical;
+  line-height: 1.6;
+}
+.rulebook-project {
+  border: 1px solid #415145;
+  border-left: 3px solid #c8e8a2;
+  border-radius: 12px;
+  background: #17231c;
+  padding: 15px;
+  margin: 13px 0;
+}
+.rulebook-project small { color: #aebcac; }
+.rulebook-project h3 { margin: 5px 0 12px; }
+.rulebook-project p { color: #dbe5d8; white-space: pre-wrap; }
+.rulebook-project button { margin-top: 12px; }
+.rule-lines { white-space: pre-wrap; }
+.avoidance-log > .muted { margin: 9px 0 12px; }
+.avoid-path {
+  padding: 14px;
+  margin: 12px 0;
+  border: 1px solid #665244;
+  border-left: 3px solid #d29d72;
+  border-radius: 10px;
+  background: #28231f;
+}
+.avoid-path > small { color: #d4b294; }
+.avoid-path ol {
+  position: relative;
+  list-style: none;
+  margin: 8px 0;
+  padding: 0 0 0 27px;
+}
+.avoid-path li {
+  position: relative;
+  padding: 8px 0 8px 12px;
+  color: #e8ddd2;
+  line-height: 1.5;
+  border-left: 1px solid #9b7459;
+}
+.avoid-path li::before {
+  position: absolute;
+  left: -6px;
+  top: 15px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  content: "";
+  background: #d29d72;
+}
+.avoid-path li:last-child { border-left-color: transparent; }
+.avoid-actions { display: flex; gap: 8px; }
+.avoid-actions button { flex: 1; }
 .veil {
   position: fixed;
   inset: 0;

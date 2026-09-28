@@ -32,6 +32,8 @@ export default function GoalTree() {
   const [selected, setSelected] = useState(null),
     [draft, setDraft] = useState(null),
     [eventDraft, setEventDraft] = useState(null),
+    [avoidDraft, setAvoidDraft] = useState(null),
+    [metaDraft, setMetaDraft] = useState({ vision: "", anti: "" }),
     [panel, setPanel] = useState(null);
   const [notice, setNotice] = useState(""),
     [domain, setDomain] = useState(""),
@@ -72,7 +74,7 @@ export default function GoalTree() {
     window.addEventListener("storage", changed);
     return () => window.removeEventListener("storage", changed);
   }, []);
-  const modal = !!(draft || eventDraft || selected || panel);
+  const modal = !!(draft || eventDraft || avoidDraft || selected || panel);
   useEffect(() => {
     if (!modal) return;
     previousFocus.current = document.activeElement;
@@ -112,17 +114,24 @@ export default function GoalTree() {
   function close() {
     setDraft(null);
     setEventDraft(null);
+    setAvoidDraft(null);
     setSelected(null);
     setPanel(null);
   }
-  function commit(nodes, label, nextEvents = data?.events || []) {
+  function commit(nodes, label, nextEvents = data?.events || [], extras = {}) {
     try {
       validate(nodes);
       validateEvents(nextEvents, nodes);
+      const metaVision = extras.metaVision ?? data?.metaVision ?? { vision: "", anti: "" };
+      const avoidPaths = extras.avoidPaths ?? data?.avoidPaths ?? [];
+      validateMetaVision(metaVision);
+      validateAvoidPaths(avoidPaths, nodes);
       const next = {
         version: 1,
         nodes,
         events: nextEvents,
+        metaVision,
+        avoidPaths,
         history: [
           ...(data?.history || []),
           {
@@ -131,6 +140,8 @@ export default function GoalTree() {
             label,
             nodes: data?.nodes || [],
             events: data?.events || [],
+            metaVision: data?.metaVision || { vision: "", anti: "" },
+            avoidPaths: data?.avoidPaths || [],
           },
         ],
       };
@@ -152,6 +163,8 @@ export default function GoalTree() {
     node = nodes.find((n) => n.id === selected);
   const domains = [...new Set(nodes.map((n) => n.domain).filter(Boolean))];
   const events = data?.events || [];
+  const metaVision = data?.metaVision || { vision: "", anti: "" };
+  const avoidPaths = data?.avoidPaths || [];
   function create(parent, type) {
     setSelected(null);
     setDraft(blank(type, parent?.id || null, parent?.domain || ""));
@@ -212,6 +225,27 @@ export default function GoalTree() {
       setSelected(event.nodeId);
     }
   }
+  function editAvoidPath(target, existing = null) {
+    setSelected(null);
+    setAvoidDraft({
+      id: existing?.id || uid(),
+      nodeId: target.id,
+      steps: existing?.steps?.join("\n") || "",
+    });
+  }
+  function saveAvoidPath(e) {
+    e.preventDefault();
+    const steps = String(new FormData(e.currentTarget).get("avoid-steps") || "")
+      .split("\n").map((step) => step.trim()).filter(Boolean);
+    const path = { ...avoidDraft, steps };
+    const nextPaths = avoidPaths.some((item) => item.id === path.id)
+      ? avoidPaths.map((item) => item.id === path.id ? path : item)
+      : [...avoidPaths, path];
+    if (commit(nodes, "Vermijdingspad bijgewerkt", events, { avoidPaths: nextPaths })) {
+      setAvoidDraft(null);
+      setSelected(path.nodeId);
+    }
+  }
   function exportFile(raw = false) {
     const text = raw
       ? localStorage.getItem(KEY)
@@ -247,6 +281,8 @@ export default function GoalTree() {
             ...h,
             id: uid(),
             events: h.events || [],
+            metaVision: h.metaVision || { vision: "", anti: "" },
+            avoidPaths: h.avoidPaths || [],
           })),
           {
             id: uid(),
@@ -254,9 +290,13 @@ export default function GoalTree() {
             label: "Situatie vóór import",
             nodes,
             events,
+            metaVision,
+            avoidPaths,
           },
         ],
         events: imported.events || [],
+        metaVision: imported.metaVision || { vision: "", anti: "" },
+        avoidPaths: imported.avoidPaths || [],
       };
       localStorage.setItem(KEY, JSON.stringify(next));
       setData(next);
@@ -284,6 +324,12 @@ export default function GoalTree() {
         .filter((event) => descendants(nodes, node.id).has(event.nodeId))
         .sort((a, b) => b.date.localeCompare(a.date))
     : [];
+  const nodeAvoidPaths = node
+    ? avoidPaths.filter((path) => descendants(nodes, node.id).has(path.nodeId))
+    : [];
+  const projectRules = nodes
+    .filter((item) => item.type === "project")
+    .flatMap((project) => splitRules(project.rules).map((rule, index) => ({ project, rule, index })));
   return (
     <main>
       <header>
@@ -354,12 +400,17 @@ export default function GoalTree() {
           ["tree", "✳", "Skilltree"],
           ["timeline", "◷", "Tijdlijn"],
           ["history", "↺", "Geschiedenis"],
+          ["compass", "⌖", "Kompas"],
+          ["rulebook", "≡", "Regelboek"],
         ].map(([t, i, l]) => (
           <button
             key={t}
             aria-pressed={tab === t}
             className={tab === t ? "active" : ""}
-            onClick={() => setTab(t)}
+            onClick={() => {
+              if (t === "compass") setMetaDraft({ ...metaVision });
+              setTab(t);
+            }}
           >
             {i} {l}
           </button>
@@ -446,7 +497,7 @@ export default function GoalTree() {
             <p className="empty">Geen onderdelen om te tonen.</p>
           )}
         </section>
-      ) : (
+      ) : tab === "history" ? (
         <section className="history">
           <h2>Versiegeschiedenis</h2>
           <p>
@@ -456,7 +507,7 @@ export default function GoalTree() {
             <article key={h.id}>
               <small>{stamp(h.at)}</small>
               <h3>Vóór: {h.label}</h3>
-              <p>{h.nodes.length} onderdelen · {h.events?.length || 0} markeringen</p>
+            <p>{h.nodes.length} onderdelen · {h.events?.length || 0} markeringen · {h.avoidPaths?.length || 0} vermijdingspaden</p>
               <button
                 onClick={() => {
                   setPanel({ snapshot: h });
@@ -469,6 +520,39 @@ export default function GoalTree() {
           {!data?.history.length && (
             <p className="empty">Je eerste wijziging verschijnt hier.</p>
           )}
+        </section>
+      ) : tab === "compass" ? (
+        <form className="compass-page" onSubmit={(e) => {
+          e.preventDefault();
+          if (commit(nodes, "Metatoekomstvisie bijgewerkt", events, { metaVision: metaDraft }))
+            setNotice("Metatoekomstvisie en meta-anti-visie bewaard.");
+        }}>
+          <p className="eyebrow">MIJN OVERKOEPELEND KOMPAS</p>
+          <h2>Metatoekomstvisie</h2>
+          <p className="muted">De richting waar al je levensgebieden en doelen onder vallen.</p>
+          <label>
+            De toekomst die ik wil opbouwen
+            <textarea rows={7} maxLength={10000} value={metaDraft.vision} onChange={(e) => setMetaDraft({ ...metaDraft, vision: e.target.value })} placeholder="Beschrijf het leven waar je naartoe wilt." />
+          </label>
+          <label>
+            Meta-anti-visie · de toekomst die ik wil voorkomen
+            <textarea rows={7} maxLength={10000} value={metaDraft.anti} onChange={(e) => setMetaDraft({ ...metaDraft, anti: e.target.value })} placeholder="Beschrijf wat je koste wat kost wilt vermijden." />
+          </label>
+          <button className="primary wide" type="submit" disabled={!data}>Kompas bewaren</button>
+        </form>
+      ) : (
+        <section className="rulebook-page">
+          <p className="eyebrow">PERSOONLIJKE AFSPRAKEN</p>
+          <h2>Regelboek</h2>
+          <p className="muted">Automatisch samengesteld uit de spelregels van je projecten. Pas regels aan in het bijbehorende project.</p>
+          {projectRules.length ? projectRules.map(({ project, rule, index }) => (
+            <article className="rulebook-project" key={`${project.id}-${index}`}>
+              <small>{project.domain} · {project.status === "completed" ? "Voltooid" : "Actief"}</small>
+              <h3>{project.title}</h3>
+              <p>{rule}</p>
+              <button onClick={() => setSelected(project.id)}>Project bekijken</button>
+            </article>
+          )) : <p className="empty">Nog geen projectregels. Voeg spelregels toe bij een project; elke regel verschijnt hier automatisch.</p>}
         </section>
       )}
       <footer>
@@ -500,7 +584,7 @@ export default function GoalTree() {
             ref={dialog}
             role="dialog"
             aria-modal="true"
-            aria-label={eventDraft ? "Padmarkering toevoegen" : draft ? "Onderdeel bewerken" : node?.title || "Beheer"}
+            aria-label={eventDraft ? "Padmarkering toevoegen" : avoidDraft ? "Vermijdingspad bewerken" : draft ? "Onderdeel bewerken" : node?.title || "Beheer"}
           >
             <div className="sheet-top">
               <span className="eyebrow">
@@ -606,10 +690,11 @@ export default function GoalTree() {
                     : []),
                 ].map(([k, l]) => (
                   <label key={k}>
-                    {l}
+                    {l}{k === "rules" && draft.type === "project" ? " · één regel per regel" : ""}
                     <textarea
                       rows={3}
                       value={draft[k]}
+                      placeholder={k === "rules" && draft.type === "project" ? "Eén afspraak per regel, bijvoorbeeld:\nGeen eten zonder invoer in mijn dieetapp.\nGeen gerationaliseerde excuses." : undefined}
                       onChange={(e) =>
                         setDraft({ ...draft, [k]: e.target.value })
                       }
@@ -619,6 +704,26 @@ export default function GoalTree() {
                 <button className="primary wide" type="submit">
                   Opslaan
                 </button>
+              </form>
+            ) : avoidDraft ? (
+              <form onSubmit={saveAvoidPath}>
+                <h2>{avoidPaths.some((path) => path.id === avoidDraft.id) ? "Vermijdingspad bewerken" : "Vermijdingspad toevoegen"}</h2>
+                <p className="muted">{nodes.find((item) => item.id === avoidDraft.nodeId)?.title}</p>
+                <label>
+                  Gedrag en gevolgen · één stap per regel
+                  <textarea
+                    name="avoid-steps"
+                    rows={8}
+                    required
+                    minLength={8}
+                    maxLength={5000}
+                    defaultValue={avoidDraft.steps}
+                    placeholder={"Bijvoorbeeld:\nGedrag: toegeven aan een gerationaliseerd excuus.\nGevolg: de afspraak met mezelf niet nakomen.\nVervolg: zelfvertrouwen en voortgang verliezen."}
+                    autoFocus
+                  />
+                </label>
+                <p className="muted">Dit pad blijft verborgen in de skilltree en verschijnt wanneer je dit doel of een hoger doel op dezelfde tak opent.</p>
+                <button className="primary wide" type="submit">Vermijdingspad bewaren</button>
               </form>
             ) : eventDraft ? (
               <form onSubmit={saveEvent}>
@@ -701,7 +806,7 @@ export default function GoalTree() {
                     node[k] && (
                       <div className="detail" key={k}>
                         <h3>{l}</h3>
-                        <p>{node[k]}</p>
+                        <p className={k === "rules" && node.type === "project" ? "rule-lines" : undefined}>{node[k]}</p>
                       </div>
                     ),
                 )}
@@ -734,6 +839,30 @@ export default function GoalTree() {
                     );
                   }) : <p className="muted">Nog geen afwijkingen of fouten op deze tak.</p>}
                 </div>
+                {node.type !== "milestone" && (
+                  <div className="detail avoidance-log">
+                    <h3>Gedrag om te vermijden · {nodeAvoidPaths.length}</h3>
+                    <p className="muted">Deze paden blijven buiten beeld totdat je dit doel of een bovenliggend doel opent.</p>
+                    <button className="add-child" onClick={() => editAvoidPath(node)}>＋ Vermijdingspad toevoegen</button>
+                    {nodeAvoidPaths.map((path) => {
+                      const linked = nodes.find((item) => item.id === path.nodeId);
+                      return (
+                        <article className="avoid-path" key={path.id}>
+                          {linked?.id !== node.id && <small>Bij: {linked?.title}</small>}
+                          <ol>{path.steps.map((step, index) => <li key={`${path.id}-${index}`}>{step}</li>)}</ol>
+                          <div className="avoid-actions">
+                            <button onClick={() => editAvoidPath(linked || node, path)}>Bewerken</button>
+                            <button className="danger" onClick={() => {
+                              if (confirm("Dit vermijdingspad verwijderen? Je kunt het via de versiegeschiedenis herstellen."))
+                                commit(nodes, "Vermijdingspad verwijderd", events, { avoidPaths: avoidPaths.filter((item) => item.id !== path.id) });
+                            }}>Verwijderen</button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                    {!nodeAvoidPaths.length && <p className="muted">Nog geen vermijdingspaden bij dit doel of deze tak.</p>}
+                  </div>
+                )}
                 <div className="detail">
                   <h3>
                     {node.type === "project"
@@ -813,6 +942,7 @@ export default function GoalTree() {
                           nodes.filter((n) => !ids.has(n.id)),
                           "Tak verwijderd",
                           events.filter((event) => !ids.has(event.nodeId)),
+                          { avoidPaths: avoidPaths.filter((path) => !ids.has(path.nodeId)) },
                         )
                       )
                         close();
@@ -865,13 +995,31 @@ export default function GoalTree() {
                 {!!panel.snapshot.events?.length && (
                   <section className="snapshot-events">
                     <h3>Padmarkeringen · {panel.snapshot.events.length}</h3>
-                    {panel.snapshot.events.map((event) => (
+                  {panel.snapshot.events.map((event) => (
                       <article className={"event-entry " + event.kind} key={event.id}>
                         <div className="event-entry-heading">
                           <span>{event.kind === "mistake" ? "! Fout" : "↘ Afwijking"}</span>
                           <time dateTime={event.date}>{date(event.date)}</time>
                         </div>
                         <p>{event.details}</p>
+                    </article>
+                  ))}
+                </section>
+                )}
+                {(panel.snapshot.metaVision?.vision || panel.snapshot.metaVision?.anti) && (
+                  <section className="snapshot-events">
+                    <h3>Metatoekomstkompas</h3>
+                    {panel.snapshot.metaVision.vision && <p><b>Toekomstvisie: </b>{panel.snapshot.metaVision.vision}</p>}
+                    {panel.snapshot.metaVision.anti && <p><b>Meta-anti-visie: </b>{panel.snapshot.metaVision.anti}</p>}
+                  </section>
+                )}
+                {!!panel.snapshot.avoidPaths?.length && (
+                  <section className="snapshot-events">
+                    <h3>Vermijdingspaden · {panel.snapshot.avoidPaths.length}</h3>
+                    {panel.snapshot.avoidPaths.map((path) => (
+                      <article className="avoid-path" key={path.id}>
+                        <b>{panel.snapshot.nodes.find((item) => item.id === path.nodeId)?.title}</b>
+                        <ol>{path.steps.map((step, index) => <li key={`${path.id}-${index}`}>{step}</li>)}</ol>
                       </article>
                     ))}
                   </section>
@@ -883,7 +1031,10 @@ export default function GoalTree() {
                       confirm(
                         "Deze versie herstellen? De huidige situatie blijft bewaard.",
                       ) &&
-                      commit(panel.snapshot.nodes, "Versie hersteld", panel.snapshot.events || [])
+                      commit(panel.snapshot.nodes, "Versie hersteld", panel.snapshot.events || [], {
+                        metaVision: panel.snapshot.metaVision || { vision: "", anti: "" },
+                        avoidPaths: panel.snapshot.avoidPaths || [],
+                      })
                     )
                       close();
                   }}
@@ -934,6 +1085,8 @@ function checkData(d) {
     throw Error("Geen geldige Richting-back-up.");
   validate(d.nodes);
   validateEvents(d.events || [], d.nodes);
+  validateMetaVision(d.metaVision || { vision: "", anti: "" });
+  validateAvoidPaths(d.avoidPaths || [], d.nodes);
   for (const h of d.history) {
     if (
       !h ||
@@ -944,7 +1097,28 @@ function checkData(d) {
     throw Error("Ongeldige geschiedenis.");
     validate(h.nodes);
     validateEvents(h.events || [], h.nodes);
+    validateMetaVision(h.metaVision || { vision: "", anti: "" });
+    validateAvoidPaths(h.avoidPaths || [], h.nodes);
   }
+}
+function validateMetaVision(meta) {
+  if (!meta || typeof meta.vision !== "string" || typeof meta.anti !== "string" || meta.vision.length > 10_000 || meta.anti.length > 10_000)
+    throw Error("Het metatoekomstkompas bevat ongeldige gegevens.");
+  return meta;
+}
+function validateAvoidPaths(paths, nodes) {
+  if (!Array.isArray(paths) || paths.length > 20_000)
+    throw Error("Ongeldige of te grote lijst met vermijdingspaden.");
+  const ids = new Set();
+  for (const path of paths) {
+    if (!path || typeof path.id !== "string" || ids.has(path.id) ||
+      !nodes.some((node) => node.id === path.nodeId && node.type !== "milestone") || !Array.isArray(path.steps) ||
+        path.steps.length < 2 || path.steps.length > 30 ||
+        path.steps.some((step) => typeof step !== "string" || !step.trim() || step.length > 500))
+      throw Error("Een vermijdingspad moet minstens twee geldige stappen bevatten.");
+    ids.add(path.id);
+  }
+  return paths;
 }
 function validateEvents(events, nodes) {
   if (!Array.isArray(events) || events.length > 20_000)
@@ -976,6 +1150,12 @@ function ancestorPath(nodes, node) {
     p = nodes.find((n) => n.id === p.parentId);
   }
   return path;
+}
+function splitRules(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((rule) => rule.trim().replace(/^(?:[-*•]|\d+[.)])\s+/, "").trim())
+    .filter(Boolean);
 }
 function Tree({ nodes, visible, events, onSelect }) {
   const box = useRef(null),
