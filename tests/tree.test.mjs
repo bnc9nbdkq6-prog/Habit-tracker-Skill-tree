@@ -7,6 +7,8 @@ import {
   setStatus,
   progress,
   layout,
+  parseRules,
+  rulebook,
 } from "../lib/tree.mjs";
 const fixture = () => {
   const nodes = [];
@@ -74,4 +76,23 @@ test("projecten mogen op jaar- en langetermijnniveau; posities zijn eindig", () 
       ),
     );
   }
+});
+test("regelboek verzamelt regels van alle soorten onderdelen en behoudt Wel/Niet", () => {
+  const nodes = [
+    { ...blank("vision"), id: "v", title: "Visie", rules: "Wel:\n- Eerst nadenken.\n\nNiet:\n- Een excuus blind geloven." },
+    { ...blank("project", "v"), id: "p", title: "Project", rules: "Eén afspraak per regel.\nTwee afspraken per regel." },
+    { ...blank("milestone", "p"), id: "m", title: "Mijlpaal", rules: "**Wel:**\n• Kort reflecteren." },
+  ];
+  const entries = rulebook(nodes);
+  assert.deepEqual(entries.map(({ node }) => node.id), ["v", "p", "m"]);
+  assert.deepEqual(entries[0].rules, [
+    { section: "Wel", text: "Eerst nadenken." },
+    { section: "Niet", text: "Een excuus blind geloven." },
+  ]);
+  assert.deepEqual(entries[1].rules, [
+    { section: "", text: "Eén afspraak per regel." },
+    { section: "", text: "Twee afspraken per regel." },
+  ]);
+  assert.deepEqual(entries[2].rules, [{ section: "Wel", text: "Kort reflecteren." }]);
+  assert.deepEqual(parseRules(""), []);
 });

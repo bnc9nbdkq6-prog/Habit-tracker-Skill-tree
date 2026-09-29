@@ -536,7 +536,11 @@ footer button {
 }
 .rulebook-project small { color: #aebcac; }
 .rulebook-project h3 { margin: 5px 0 12px; }
-.rulebook-project p { color: #dbe5d8; white-space: pre-wrap; }
+.rulebook-project p,
+.rulebook-list { color: #dbe5d8; }
+.rulebook-list { margin: 8px 0 0; padding-left: 22px; }
+.rulebook-list li { margin: 8px 0; line-height: 1.55; }
+.rulebook-list b { color: #c8e8a2; }
 .rulebook-project button { margin-top: 12px; }
 .rule-lines { white-space: pre-wrap; }
 .avoidance-log > .muted { margin: 9px 0 12px; }

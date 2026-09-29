@@ -10,6 +10,7 @@ import {
   progress,
   setStatus,
   layout,
+  rulebook,
 } from "../lib/tree.mjs";
 
 const date = (d) =>
@@ -327,9 +328,7 @@ export default function GoalTree() {
   const nodeAvoidPaths = node
     ? avoidPaths.filter((path) => descendants(nodes, node.id).has(path.nodeId))
     : [];
-  const projectRules = nodes
-    .filter((item) => item.type === "project")
-    .flatMap((project) => splitRules(project.rules).map((rule, index) => ({ project, rule, index })));
+  const rulebookGroups = rulebook(nodes);
   return (
     <main>
       <header>
@@ -544,15 +543,21 @@ export default function GoalTree() {
         <section className="rulebook-page">
           <p className="eyebrow">PERSOONLIJKE AFSPRAKEN</p>
           <h2>Regelboek</h2>
-          <p className="muted">Automatisch samengesteld uit de spelregels van je projecten. Pas regels aan in het bijbehorende project.</p>
-          {projectRules.length ? projectRules.map(({ project, rule, index }) => (
-            <article className="rulebook-project" key={`${project.id}-${index}`}>
-              <small>{project.domain} · {project.status === "completed" ? "Voltooid" : "Actief"}</small>
-              <h3>{project.title}</h3>
-              <p>{rule}</p>
-              <button onClick={() => setSelected(project.id)}>Project bekijken</button>
+          <p className="muted">Automatisch samengesteld uit de spelregels van al je doelen, projecten en mijlpalen. Pas regels aan bij het onderdeel waaraan ze gekoppeld zijn.</p>
+          {rulebookGroups.length ? rulebookGroups.map(({ node: source, rules }) => (
+            <article className="rulebook-project" key={source.id}>
+              <small>{source.domain} · {TYPES[source.type]} · {source.status === "completed" ? "Voltooid" : "Actief"}</small>
+              <h3>{source.title}</h3>
+              <ul className="rulebook-list">
+                {rules.map(({ section, text }, index) => (
+                  <li key={`${source.id}-${index}`}>
+                    {section && <b>{section}: </b>}{text}
+                  </li>
+                ))}
+              </ul>
+              <button onClick={() => setSelected(source.id)}>Onderdeel bekijken</button>
             </article>
-          )) : <p className="empty">Nog geen projectregels. Voeg spelregels toe bij een project; elke regel verschijnt hier automatisch.</p>}
+          )) : <p className="empty">Nog geen regels. Voeg spelregels toe bij een doel, project of mijlpaal; ze verschijnen hier automatisch.</p>}
         </section>
       )}
       <footer>
@@ -1152,12 +1157,6 @@ function ancestorPath(nodes, node) {
     p = nodes.find((n) => n.id === p.parentId);
   }
   return path;
-}
-function splitRules(value) {
-  return String(value || "")
-    .split(/\r?\n/)
-    .map((rule) => rule.trim().replace(/^(?:[-*•]|\d+[.)])\s+/, "").trim())
-    .filter(Boolean);
 }
 function Tree({ nodes, visible, events, onSelect }) {
   const box = useRef(null),
